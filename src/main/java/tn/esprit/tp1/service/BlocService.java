@@ -15,4 +15,9 @@ public interface BlocService {
     List<Bloc> getAllBlocs();
 
     Bloc getBlocById(Long id);
+
+    Bloc affecterChambresABloc(List<Long> idsChambres, Long idBloc);
+
+
+
 }

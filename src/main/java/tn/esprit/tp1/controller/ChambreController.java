@@ -15,7 +15,7 @@ public class ChambreController {
 
     private final ChambreService chambreService;
 
-    // ✅ Injection via constructeur
+    //  Injection via constructeur
     public ChambreController(ChambreService chambreService) {
         this.chambreService = chambreService;
     }

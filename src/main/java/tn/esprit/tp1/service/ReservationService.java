@@ -14,4 +14,8 @@ public interface ReservationService {
     List<Reservation> getAllReservations();
 
     Reservation getReservationById(Long id);
+
+
+    Reservation ajouterReservation(Long idBloc, Long idEtudiant);
+
 }

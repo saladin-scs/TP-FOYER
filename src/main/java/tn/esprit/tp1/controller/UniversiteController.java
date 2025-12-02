@@ -52,4 +52,12 @@ public class UniversiteController {
     public Universite getUniversiteById(@PathVariable Long id) {
         return universiteService.getUniversiteById(id);
     }
+
+
+
+
+
+
+
+
 }

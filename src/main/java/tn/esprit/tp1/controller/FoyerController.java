@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.tp1.entity.Foyer;
+import tn.esprit.tp1.entity.Universite;
 import tn.esprit.tp1.service.FoyerService;
 
 import java.util.List;
@@ -67,4 +68,8 @@ public class FoyerController {
     public Foyer getFoyerById(@PathVariable Long id) {
         return foyerService.getFoyerById(id);
     }
+
+
+
+
 }
