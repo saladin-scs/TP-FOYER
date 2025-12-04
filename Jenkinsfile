@@ -6,7 +6,7 @@ pipeline {
         DOCKERHUB = "khalfaouisaladin"
     }
     triggers {
-        pollSCM('H/5 * * * *') // Vérifie tous les 5 min les nouveaux commits
+        pollSCM('H/5 * * * *') // Vérifie les commits toutes les 5 minutes
     }
     stages {
         stage('Checkout') {
