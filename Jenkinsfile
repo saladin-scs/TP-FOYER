@@ -1,30 +1,57 @@
 pipeline {
     agent any
+
     environment {
         REGISTRY = "localhost:5000"
         IMAGE_NAME = "myubuntu"
         DOCKERHUB = "khalfaouisaladin"
     }
+
     triggers {
-        pollSCM('H/5 * * * *') // Vérifie les commits toutes les 5 minutes
+        pollSCM('H/5 * * * *') // Vérifie le repo toutes les 5 minutes
     }
+
     stages {
+
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/saladin-scs/TP-FOYER.git'
             }
         }
+
+        stage('Build Maven') {
+            steps {
+                sh "mvn clean install -DskipTests"
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar-server') {
+                    sh """
+                        mvn sonar:sonar \
+                        -Dsonar.projectKey=TP1 \
+                        -Dsonar.host.url=http://localhost:9000 \
+                        -Dsonar.login=admin \
+                        -Dsonar.password=sonar
+                    """
+                }
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t $IMAGE_NAME:latest .'
             }
         }
+
         stage('Push Local Registry') {
             steps {
                 sh 'docker tag $IMAGE_NAME:latest $REGISTRY/$IMAGE_NAME:latest'
                 sh 'docker push $REGISTRY/$IMAGE_NAME:latest'
             }
         }
+
         stage('Push Docker Hub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
@@ -35,6 +62,7 @@ pipeline {
             }
         }
     }
+
     post {
         always {
             sh 'docker logout'
