@@ -2,7 +2,9 @@ pipeline {
     agent any
 
     environment {
-        SONAR_TOKEN = credentials('Sonar_Token')
+        IMAGE_NAME = "khalfaouisaladin/myubuntu:latest"
+        DOCKER_CREDENTIALS = "docker-hub-credentials"
+        KUBECONFIG = "/home/jenkins/.kube/config"
     }
 
     stages {
@@ -13,17 +15,40 @@ pipeline {
             }
         }
 
-        stage('Maven SonarQube Analysis') {
+        stage('Build Maven') {
             steps {
-                withSonarQubeEnv('sonar-server') {
-                    sh """
-                        mvn sonar:sonar \
-                        -Dsonar.projectKey=TP1 \
-                        -Dsonar.host.url=http://localhost:9000 \
-                        -Dsonar.login=$SONAR_TOKEN
-                    """
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    docker.withRegistry('https://index.docker.io/v1/', DOCKER_CREDENTIALS) {
+                        def appImage = docker.build(IMAGE_NAME)
+                        appImage.push()
+                    }
                 }
             }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withEnv(["KUBECONFIG=$KUBECONFIG"]) {
+                    sh 'kubectl set image deployment/spring-app spring-app=$IMAGE_NAME -n devops'
+                    sh 'kubectl rollout status deployment/spring-app -n devops'
+                    sh 'kubectl get pods -n devops'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Déploiement terminé avec succès !"
+        }
+        failure {
+            echo "❌ Le pipeline a échoué. Vérifier les logs."
         }
     }
 }
