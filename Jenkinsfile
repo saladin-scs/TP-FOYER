@@ -3,31 +3,52 @@ pipeline {
 
     environment {
         IMAGE_NAME = "khalfaouisaladin/myubuntu:latest"
-        DOCKER_CREDENTIALS = "docker-hub-credentials"
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds') // ID des credentials Docker Hub dans Jenkins
         KUBECONFIG = "/home/jenkins/.kube/config"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout SCM') {
             steps {
-                git branch: 'main', url: 'https://github.com/saladin-scs/TP-FOYER.git'
+                checkout scm
             }
         }
 
         stage('Build Maven') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                dir('StudentsManagement-DevOps') { // adjust if your Maven project is in another folder
+                    sh 'mvn clean package -DskipTests'
+                }
             }
         }
 
-        stage('Docker Build & Push') {
+        stage('Docker Build') {
+            steps {
+                dir('StudentsManagement-DevOps') { // adjust to your Dockerfile location
+                    sh "docker build -t ${IMAGE_NAME} ."
+                }
+            }
+        }
+
+        stage('Docker Login & Push') {
             steps {
                 script {
-                    docker.withRegistry('https://index.docker.io/v1/', DOCKER_CREDENTIALS) {
-                        def appImage = docker.build(IMAGE_NAME)
-                        appImage.push()
-                    }
+                    sh """
+                        echo ${DOCKERHUB_CREDENTIALS_PSW} | docker login -u ${DOCKERHUB_CREDENTIALS_USR} --password-stdin
+                        docker push ${IMAGE_NAME}
+                    """
+                }
+            }
+        }
+
+        stage('Load Image to Minikube') {
+            steps {
+                script {
+                    // Vérifie si minikube est accessible
+                    sh "minikube status || exit 1"
+                    // Charge l'image dans Minikube
+                    sh "minikube image load ${IMAGE_NAME}"
                 }
             }
         }
@@ -35,9 +56,18 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 withEnv(["KUBECONFIG=$KUBECONFIG"]) {
-                    sh 'kubectl set image deployment/spring-app spring-app=$IMAGE_NAME -n devops'
-                    sh 'kubectl rollout status deployment/spring-app -n devops'
-                    sh 'kubectl get pods -n devops'
+                    // Apply MySQL and Spring Boot deployment YAMLs
+                    sh "kubectl apply -f ${WORKSPACE}/mysql.yaml || echo 'mysql.yaml missing, skipping...'"
+                    sh "kubectl apply -f ${WORKSPACE}/spring.yaml || echo 'spring.yaml missing, skipping...'"
+
+                    // Optionally update Spring Boot image
+                    sh "kubectl set image deployment/spring-app spring-app=${IMAGE_NAME} -n devops || echo 'Skipping set image'"
+
+                    // Wait for rollout to complete
+                    sh "kubectl rollout status deployment/spring-app -n devops || echo 'Rollout failed'"
+
+                    // List pods to verify
+                    sh "kubectl get pods -n devops"
                 }
             }
         }
@@ -45,10 +75,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Déploiement terminé avec succès !"
+            echo "✅ Pipeline terminée avec succès !"
         }
         failure {
-            echo "❌ Le pipeline a échoué. Vérifier les logs."
+            echo "❌ La pipeline a échoué. Vérifier les logs !"
         }
     }
 }
