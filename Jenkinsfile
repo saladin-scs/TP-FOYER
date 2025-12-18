@@ -22,7 +22,7 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {
+                withSonarQubeEnv('sonar-server') {
                     sh "mvn verify sonar:sonar -DskipTests -Dsonar.login=${SONAR_TOKEN}"
                 }
             }
