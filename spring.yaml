@@ -35,11 +35,8 @@ pipeline {
                 withCredentials([file(credentialsId: 'kubeconfig-devops', variable: 'KUBECONFIG')]) {
                     sh """
                         echo "🚀 Deploying to Kubernetes..."
-                        # Apply YAML files
                         kubectl apply -f ./mysql.yaml --validate=false || true
                         kubectl apply -f ./spring.yaml --validate=false || true
-
-                        # Update deployment image
                         kubectl set image deployment/spring-app spring-app=${IMAGE_NAME} -n devops
                         kubectl rollout status deployment/spring-app -n devops
                         kubectl get pods -n devops
@@ -47,6 +44,7 @@ pipeline {
                 }
             }
         }
+
     }
 
     post {
