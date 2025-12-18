@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "khalfaouisaladin/myubuntu:latest"
+        IMAGE_NAME = "khalfaouisaladin/myubuntu:${BUILD_NUMBER}"
         DOCKER_CREDENTIALS = credentials('docker-hub-credentials')
         SONAR_TOKEN = credentials('Sonar_Token')
     }
@@ -28,6 +28,7 @@ pipeline {
                 script {
                     docker.withRegistry('', 'docker-hub-credentials') {
                         docker.image("${IMAGE_NAME}").push()
+                        docker.image("${IMAGE_NAME}").push("latest")
                     }
                 }
             }
@@ -45,18 +46,14 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig-devops', variable: 'KUBECONFIG')]) {
                     script {
-                        // Apply manifests
+                        // Optionally replace image in YAML
+                        sh "sed -i 's|springio/gs-spring-boot-docker|${IMAGE_NAME}|g' ${WORKSPACE}/PipelineKubernities/spring.yaml"
+
                         sh """
                         kubectl apply -f ${WORKSPACE}/PipelineKubernities/mysql.yaml --validate=false || echo "mysql.yaml missing, skipping..."
                         kubectl apply -f ${WORKSPACE}/PipelineKubernities/spring.yaml --validate=false || echo "spring.yaml missing, skipping..."
-                        
-                        # Update image
-                        kubectl set image deployment/spring-app spring-app=${IMAGE_NAME} -n devops || echo "Skipping set image"
-                        
-                        # Rollout status
+
                         kubectl rollout status deployment/spring-app -n devops || echo "Rollout failed"
-                        
-                        # Show pods
                         kubectl get pods -n devops
                         """
                     }
