@@ -15,17 +15,24 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build with Maven') {
             steps {
-                script {
-                    docker.build("${IMAGE_NAME}")
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh "mvn verify sonar:sonar -Dsonar.login=${SONAR_TOKEN}"
                 }
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Build & Push Docker Image') {
             steps {
                 script {
+                    docker.build("${IMAGE_NAME}")
                     docker.withRegistry('', 'docker-hub-credentials') {
                         docker.image("${IMAGE_NAME}").push()
                         docker.image("${IMAGE_NAME}").push("latest")
@@ -34,26 +41,16 @@ pipeline {
             }
         }
 
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh "mvn clean verify sonar:sonar -Dsonar.login=${SONAR_TOKEN}"
-                }
-            }
-        }
-
         stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig-devops', variable: 'KUBECONFIG')]) {
                     script {
-                        // Optionally replace image in YAML
-                        sh "sed -i 's|springio/gs-spring-boot-docker|${IMAGE_NAME}|g' ${WORKSPACE}/PipelineKubernities/spring.yaml"
-
+                        // Option 1: Update image dynamically
                         sh """
                         kubectl apply -f ${WORKSPACE}/PipelineKubernities/mysql.yaml --validate=false || echo "mysql.yaml missing, skipping..."
                         kubectl apply -f ${WORKSPACE}/PipelineKubernities/spring.yaml --validate=false || echo "spring.yaml missing, skipping..."
-
-                        kubectl rollout status deployment/spring-app -n devops || echo "Rollout failed"
+                        kubectl set image deployment/spring-app spring-app=${IMAGE_NAME} -n devops
+                        kubectl rollout status deployment/spring-app -n devops
                         kubectl get pods -n devops
                         """
                     }
