@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = "khalfaouisaladin/myubuntu:${BUILD_NUMBER}"
-        SONAR_TOKEN = credentials('Sonar_Token')
+        SONAR_TOKEN = credentials('sonar-token-id')
     }
 
     stages {
