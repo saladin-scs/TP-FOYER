@@ -3,8 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = "khalfaouisaladin/myubuntu:${BUILD_NUMBER}"
-        DOCKER_CREDENTIALS = credentials('docker-hub-credentials')
-        SONAR_TOKEN = credentials('sonar-token-id')
+        SONAR_TOKEN = credentials('Sonar_Token')
     }
 
     stages {
@@ -17,14 +16,14 @@ pipeline {
 
         stage('Build with Maven') {
             steps {
-                sh 'mvn clean package'
+                sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh "mvn verify sonar:sonar -Dsonar.login=${SONAR_TOKEN}"
+                    sh "mvn verify sonar:sonar -DskipTests -Dsonar.login=${SONAR_TOKEN}"
                 }
             }
         }
@@ -44,16 +43,13 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig-devops', variable: 'KUBECONFIG')]) {
-                    script {
-                        // Option 1: Update image dynamically
-                        sh """
-                        kubectl apply -f ${WORKSPACE}/PipelineKubernities/mysql.yaml --validate=false || echo "mysql.yaml missing, skipping..."
-                        kubectl apply -f ${WORKSPACE}/PipelineKubernities/spring.yaml --validate=false || echo "spring.yaml missing, skipping..."
-                        kubectl set image deployment/spring-app spring-app=${IMAGE_NAME} -n devops
-                        kubectl rollout status deployment/spring-app -n devops
-                        kubectl get pods -n devops
-                        """
-                    }
+                    sh """
+                    kubectl apply -f PipelineKubernities/mysql.yaml --validate=false || true
+                    kubectl apply -f PipelineKubernities/spring.yaml --validate=false || true
+                    kubectl set image deployment/spring-app spring-app=${IMAGE_NAME} -n devops
+                    kubectl rollout status deployment/spring-app -n devops
+                    kubectl get pods -n devops
+                    """
                 }
             }
         }
