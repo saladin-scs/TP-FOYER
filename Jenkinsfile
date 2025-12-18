@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "khalfaouisaladin/myubuntu:${BUILD_NUMBER}"
         DOCKER_CREDENTIALS = credentials('docker-hub-credentials')
-        SONAR_TOKEN = credentials('Sonar_Token')
+        SONAR_TOKEN = credentials('sonar-token-id')
     }
 
     stages {
