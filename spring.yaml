@@ -2,57 +2,58 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "docker.io/khalfaouisaladin/myubuntu:${BUILD_NUMBER}"
+        IMAGE_NAME = "docker.io/khalfaouisaladin/tp-foyer:${BUILD_NUMBER}"
     }
 
     stages {
 
         stage('Checkout SCM') {
             steps {
+                echo "🔄 Checking out source code..."
                 git branch: 'main', url: 'https://github.com/saladin-scs/TP-FOYER.git'
             }
         }
 
         stage('Build with Maven') {
             steps {
+                echo "📦 Building project with Maven..."
                 sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('Build & Push Docker Image') {
             steps {
-                script {
+                echo "🐳 Building and pushing Docker image..."
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh """
+                        docker login -u $DOCKER_USER -p $DOCKER_PASS
                         docker build -t ${IMAGE_NAME} .
                         docker push ${IMAGE_NAME}
+                        docker images | grep ${IMAGE_NAME}
                     """
                 }
             }
         }
 
-stage('Deploy to Kubernetes') {
-    steps {
-        echo "🚀 Deploying to Kubernetes..."
-        sh """
-        kubectl apply -f mysql.yaml
-        kubectl apply -f spring.yaml
-
-        kubectl set image deployment/spring-app spring-app=${IMAGE_NAME} -n devops
-        kubectl rollout status deployment/spring-app -n devops
-
-        kubectl get pods -n devops
-        kubectl get svc -n devops
-        """
+        stage('Run Docker Container') {
+            steps {
+                echo "🚀 Running Docker container locally..."
+                sh """
+                    docker stop tp-foyer || true
+                    docker rm tp-foyer || true
+                    docker run -d --name tp-foyer -p 8081:8080 ${IMAGE_NAME}
+                    docker ps | grep tp-foyer
+                """
+            }
+        }
     }
-}
-
 
     post {
         success {
-            echo "✅ Deployment successful!"
+            echo "✅ Docker build, push, and run completed successfully!"
         }
         failure {
-            echo "❌ Deployment failed!"
+            echo "❌ Pipeline failed!"
         }
     }
 }
