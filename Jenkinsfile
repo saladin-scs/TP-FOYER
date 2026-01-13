@@ -23,8 +23,7 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                echo "🔍 Running SonarQube scan..."
-                withSonarQubeEnv('sonar-token-id') {
+                withSonarQubeEnv('sonarqube-server') { // doit correspondre au nom configuré
                     sh 'mvn sonar:sonar'
                 }
             }
