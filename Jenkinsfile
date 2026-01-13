@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = "khalfaouisaladin/myubuntu:${BUILD_NUMBER}"
-        KUBECONFIG = "/var/lib/jenkins/.kube/config" // Use your working kubeconfig
+        KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
 
     stages {
@@ -14,33 +14,53 @@ pipeline {
             }
         }
 
+        stage('Build & Test') {
+            steps {
+                echo "📦 Build and run tests..."
+                sh 'mvn clean compile test'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                echo "🔍 Running SonarQube scan..."
+                withSonarQubeEnv('sonar-token-id') {
+                    sh 'mvn sonar:sonar'
+                }
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                sh """
-                echo "🔧 Building Docker image..."
-                docker build -t ${IMAGE_NAME} .
-                docker images | grep ${IMAGE_NAME}
-                """
+                echo "🐳 Building Docker image..."
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                    docker login -u $DOCKER_USER -p $DOCKER_PASS
+                    docker build -t ${IMAGE_NAME} .
+                    docker push ${IMAGE_NAME}
+                    docker images | grep ${IMAGE_NAME}
+                    """
+                }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh """
                 echo "🚀 Deploying to Kubernetes..."
-
-                # Apply YAMLs (make sure no tabs, only spaces)
+                sh """
+                # Apply YAMLs
                 kubectl apply -f ./mysql.yaml --validate=false
                 kubectl apply -f ./spring.yaml --validate=false
 
-                # Update the Spring deployment image
+                # Update Spring deployment image
                 kubectl set image deployment/spring-app spring-app=${IMAGE_NAME} -n devops
 
-                # Wait for rollout to complete
-                kubectl rollout status deployment/spring-app -n devops
+                # Wait for rollout
+                kubectl rollout status deployment/spring-app -n devops || exit 1
 
-                # Show pods
+                # Show pods and services
                 kubectl get pods -n devops
+                kubectl get svc -n devops
                 """
             }
         }
@@ -49,9 +69,15 @@ pipeline {
     post {
         success {
             echo "✅ Kubernetes deployment successful!"
+            // Optional: Slack notification
+            // slackSend(channel: '#devops', message: "Deployment succeeded: ${IMAGE_NAME}")
         }
         failure {
             echo "❌ Kubernetes deployment failed!"
+            // Optional rollback
+            sh 'kubectl rollout undo deployment/spring-app -n devops'
+            // Optional: Slack notification
+            // slackSend(channel: '#devops', message: "Deployment failed: ${IMAGE_NAME}")
         }
     }
 }
