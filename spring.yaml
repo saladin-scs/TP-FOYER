@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "docker.io/khalfaouisaladin/tp-foyer:${BUILD_NUMBER}"
+        IMAGE_NAME = "khalfaouisaladin/tp-foyer"
+        TAG = "${BUILD_NUMBER}"
     }
 
     stages {
@@ -23,12 +24,13 @@ pipeline {
 
         stage('Build & Push Docker Image') {
             steps {
-                echo "🐳 Building and pushing Docker image..."
+                echo "🐳 Building and pushing Docker image to Docker Hub..."
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh """
-                        docker login -u $DOCKER_USER -p $DOCKER_PASS
-                        docker build -t ${IMAGE_NAME} .
-                        docker push ${IMAGE_NAME}
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker build -t ${IMAGE_NAME}:${TAG} -t ${IMAGE_NAME}:latest .
+                        docker push ${IMAGE_NAME}:${TAG}
+                        docker push ${IMAGE_NAME}:latest
                         docker images | grep ${IMAGE_NAME}
                     """
                 }
@@ -41,7 +43,7 @@ pipeline {
                 sh """
                     docker stop tp-foyer || true
                     docker rm tp-foyer || true
-                    docker run -d --name tp-foyer -p 8081:8080 ${IMAGE_NAME}
+                    docker run -d --name tp-foyer -p 8081:8080 ${IMAGE_NAME}:${TAG}
                     docker ps | grep tp-foyer
                 """
             }
@@ -50,7 +52,7 @@ pipeline {
 
     post {
         success {
-            echo "✅ Docker build, push, and run completed successfully!"
+            echo "✅ Docker image pushed to Docker Hub and container is running!"
         }
         failure {
             echo "❌ Pipeline failed!"
