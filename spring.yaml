@@ -40,22 +40,36 @@ pipeline {
         stage('Run Docker Container') {
             steps {
                 echo "🚀 Running Docker container locally..."
-                sh """
-                    docker stop tp-foyer || true
-                    docker rm tp-foyer || true
-                    docker run -d --name tp-foyer -p 8081:8080 ${IMAGE_NAME}:${TAG}
-                    docker ps | grep tp-foyer
-                """
+                script {
+                    def runResult = sh(script: """
+                        docker stop tp-foyer || true
+                        docker rm tp-foyer || true
+                        docker run -d --name tp-foyer -p 8081:8080 ${IMAGE_NAME}:${TAG}
+                        sleep 10
+                        docker ps | grep tp-foyer
+                    """, returnStatus: true)
+
+                    if (runResult != 0) {
+                        echo "⚠️ Container failed to start, rolling back to previous image..."
+                        sh """
+                            docker stop tp-foyer || true
+                            docker rm tp-foyer || true
+                            docker run -d --name tp-foyer -p 8081:8080 ${IMAGE_NAME}:latest
+                            docker ps | grep tp-foyer
+                        """
+                        error("Rollback executed due to container failure.")
+                    }
+                }
             }
         }
     }
 
     post {
         success {
-            echo "✅ Docker image pushed to Docker Hub and container is running!"
+            echo "✅ Docker image pushed and container is running!"
         }
         failure {
-            echo "❌ Pipeline failed!"
+            echo "❌ Pipeline failed! Check logs for details."
         }
     }
 }
