@@ -21,13 +21,20 @@ pipeline {
             }
         }
 
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('sonarqube-server') { // doit correspondre au nom configuré
-                    sh 'mvn sonar:sonar'
-                }
-            }
-        }
+       stage('SonarQube Analysis') {
+    environment {
+        SONAR_TOKEN = credentials('sonar-token-id') // utilise exactement l’ID de ton credential
+    }
+    steps {
+        sh """
+        mvn clean verify sonar:sonar \
+            -Dsonar.projectKey=TP-FOYER \
+            -Dsonar.host.url=http://localhost:9000 \
+            -Dsonar.login=${SONAR_TOKEN}
+        """
+    }
+}
+
 
         stage('Build Docker Image') {
             steps {
