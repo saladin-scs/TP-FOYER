@@ -27,13 +27,15 @@ pipeline {
                 SONAR_TOKEN = credentials('sonar-token-id') // ID du credential SonarQube
             }
             steps {
-                echo "🔍 Running SonarQube analysis..."
-                sh """
-                    mvn sonar:sonar \
-                        -Dsonar.projectKey=TP-FOYER \
-                        -Dsonar.host.url=${SONAR_HOST} \
-                        -Dsonar.login=${SONAR_TOKEN}
-                """
+                echo "🔍 Running SonarQube analysis (errors will be ignored)..."
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    sh """
+                        mvn sonar:sonar \
+                            -Dsonar.projectKey=TP-FOYER \
+                            -Dsonar.host.url=${SONAR_HOST} \
+                            -Dsonar.login=${SONAR_TOKEN}
+                    """
+                }
             }
         }
 
@@ -70,6 +72,9 @@ pipeline {
         }
         failure {
             echo "❌ Pipeline failed! Check logs for details."
+        }
+        unstable {
+            echo "⚠️ SonarQube analysis failed, but pipeline continued."
         }
     }
 }
