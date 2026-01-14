@@ -2,71 +2,63 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "khalfaouisaladin/myubuntu:${BUILD_NUMBER}"
-        KUBECONFIG = "/var/lib/jenkins/.kube/config"
+        IMAGE_NAME = "docker.io/khalfaouisaladin/tp-foyer"
+        SONAR_HOST = "http://localhost:9000" // ton serveur SonarQube
     }
 
     stages {
 
         stage('Checkout SCM') {
             steps {
-                checkout scm
+                echo "🔄 Checking out source code..."
+                git branch: 'main', url: 'https://github.com/saladin-scs/TP-FOYER.git'
             }
         }
 
-        stage('Build & Test') {
+        stage('Build with Maven') {
             steps {
-                echo "📦 Build and run tests..."
+                echo "📦 Building project with Maven..."
                 sh 'mvn clean package -DskipTests'
             }
         }
 
-       stage('SonarQube Analysis') {
-    environment {
-        SONAR_TOKEN = credentials('sonar-token-id') // utilise exactement l’ID de ton credential
-    }
-    steps {
-        sh """
-        mvn clean verify sonar:sonar \
-            -Dsonar.projectKey=TP-FOYER \
-            -Dsonar.host.url=http://localhost:9000 \
-            -Dsonar.login=${SONAR_TOKEN}
-        """
-    }
-}
-
-
-        stage('Build Docker Image') {
+        stage('SonarQube Analysis') {
+            environment {
+                SONAR_TOKEN = credentials('sonar-token-id') // ID du credential SonarQube
+            }
             steps {
-                echo "🐳 Building Docker image..."
+                echo "🔍 Running SonarQube analysis..."
+                sh """
+                    mvn sonar:sonar \
+                        -Dsonar.projectKey=TP-FOYER \
+                        -Dsonar.host.url=${SONAR_HOST} \
+                        -Dsonar.login=${SONAR_TOKEN}
+                """
+            }
+        }
+
+        stage('Build & Push Docker Image') {
+            steps {
+                echo "🐳 Building and pushing Docker image..."
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh """
-                    docker login -u $DOCKER_USER -p $DOCKER_PASS
-                    docker build -t ${IMAGE_NAME} .
-                    docker push ${IMAGE_NAME}
-                    docker images | grep ${IMAGE_NAME}
+                        docker login -u $DOCKER_USER -p $DOCKER_PASS
+                        docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} -t ${IMAGE_NAME}:latest .
+                        docker push ${IMAGE_NAME}:${BUILD_NUMBER}
+                        docker push ${IMAGE_NAME}:latest
                     """
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Run Docker Container') {
             steps {
-                echo "🚀 Deploying to Kubernetes..."
+                echo "🚀 Running Docker container locally..."
                 sh """
-                # Apply YAMLs
-                kubectl apply -f ./mysql.yaml --validate=false
-                kubectl apply -f ./spring.yaml --validate=false
-
-                # Update Spring deployment image
-                kubectl set image deployment/spring-app spring-app=${IMAGE_NAME} -n devops
-
-                # Wait for rollout
-                kubectl rollout status deployment/spring-app -n devops || exit 1
-
-                # Show pods and services
-                kubectl get pods -n devops
-                kubectl get svc -n devops
+                    docker stop tp-foyer || true
+                    docker rm tp-foyer || true
+                    docker run -d --name tp-foyer -p 8081:8080 ${IMAGE_NAME}:${BUILD_NUMBER}
+                    docker ps | grep tp-foyer
                 """
             }
         }
@@ -74,16 +66,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Kubernetes deployment successful!"
-            // Optional: Slack notification
-            // slackSend(channel: '#devops', message: "Deployment succeeded: ${IMAGE_NAME}")
+            echo "✅ Pipeline completed successfully!"
         }
         failure {
-            echo "❌ Kubernetes deployment failed!"
-            // Optional rollback
-            sh 'kubectl rollout undo deployment/spring-app -n devops'
-            // Optional: Slack notification
-            // slackSend(channel: '#devops', message: "Deployment failed: ${IMAGE_NAME}")
+            echo "❌ Pipeline failed! Check logs for details."
         }
     }
 }
