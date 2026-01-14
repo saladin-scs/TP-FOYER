@@ -39,19 +39,22 @@ pipeline {
             }
         }
 
-        stage('Build & Push Docker Image') {
-            steps {
-                echo "🐳 Building and pushing Docker image..."
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh """
-                        docker login -u $DOCKER_USER -p $DOCKER_PASS
-                        docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} -t ${IMAGE_NAME}:latest .
-                        docker push ${IMAGE_NAME}:${BUILD_NUMBER}
-                        docker push ${IMAGE_NAME}:latest
-                    """
-                }
-            }
+stage('Build & Push Docker Image') {
+    steps {
+        echo "🐳 Building and pushing Docker image..."
+        withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh """
+                docker login -u $DOCKER_USER -p $DOCKER_PASS
+                docker build -t khalfaouisaladin/tp-foyer:${BUILD_NUMBER} .
+                docker tag khalfaouisaladin/tp-foyer:${BUILD_NUMBER} khalfaouisaladin/tp-foyer:latest
+                docker push khalfaouisaladin/tp-foyer:${BUILD_NUMBER} > /dev/null
+                docker push khalfaouisaladin/tp-foyer:latest > /dev/null
+                echo "✅ Docker image pushed successfully!"
+            """
         }
+    }
+}
+
 
         stage('Run Docker Container') {
             steps {
